@@ -18,8 +18,8 @@ libasound2 libxmu-dev libxi-dev freeglut3-dev libasound2-dev libjack0 libjack-de
 ##### Ubuntu 16.04 and Debian Stretch in desktop
 
 * Download *qt-opensource-linux-x64-5.9.1.run* from [QT Downloads](https://download.qt.io/official_releases/qt/5.9/5.9.1/) ( [direct link](http://www.mirrorservice.org/sites/download.qt-project.org/archive/qt/5.9/5.9.1/qt-opensource-linux-x64-5.9.1.run) ).
-* chown +x qt-opensource-linux-x64-5.9.2.run
-* Install qt: ./qt-opensource-linux-x64-5.9.2.run
+* chown +x qt-opensource-linux-x64-5.9.1.run
+* Install qt: ./qt-opensource-linux-x64-5.9.1.run
   * Use as installation directory: $HOME/Qt
   * Install ALL features
 

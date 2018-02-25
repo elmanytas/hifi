@@ -21,7 +21,7 @@
 
 #include <DependencyManager.h>
 #include <ResourceCache.h>
-#include <model/TextureMap.h>
+#include <graphics/TextureMap.h>
 #include <image/Image.h>
 #include <ktx/KTX.h>
 
@@ -163,7 +163,6 @@ public:
     NetworkTexturePointer getTexture(const QUrl& url, image::TextureUsage::Type type = image::TextureUsage::DEFAULT_TEXTURE,
         const QByteArray& content = QByteArray(), int maxNumPixels = ABSOLUTE_MAX_TEXTURE_NUM_PIXELS);
 
-
     gpu::TexturePointer getTextureByHash(const std::string& hash);
     gpu::TexturePointer cacheTextureByHash(const std::string& hash, const gpu::TexturePointer& texture);
 
@@ -171,6 +170,7 @@ public:
     const gpu::FramebufferPointer& getHmdPreviewFramebuffer(int width, int height);
     const gpu::FramebufferPointer& getSpectatorCameraFramebuffer();
     const gpu::FramebufferPointer& getSpectatorCameraFramebuffer(int width, int height);
+    void updateSpectatorCameraNetworkTexture();
 
     static const int DEFAULT_SPECTATOR_CAM_WIDTH { 2048 };
     static const int DEFAULT_SPECTATOR_CAM_HEIGHT { 1024 };
@@ -193,10 +193,12 @@ private:
     TextureCache();
     virtual ~TextureCache();
 
+#if !defined(DISABLE_KTX_CACHE)
     static const std::string KTX_DIRNAME;
     static const std::string KTX_EXT;
 
     std::shared_ptr<cache::FileCache> _ktxCache { std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT) };
+#endif
     // Map from image hashes to texture weak pointers
     std::unordered_map<std::string, std::weak_ptr<gpu::Texture>> _texturesByHashes;
     std::mutex _texturesByHashesMutex;

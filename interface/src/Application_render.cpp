@@ -55,7 +55,7 @@ void Application::paintGL() {
         // If a display plugin loses it's underlying support, it
         // needs to be able to signal us to not use it
         if (!displayPlugin->beginFrameRender(_renderFrameCount)) {
-            updateDisplayMode();
+            QMetaObject::invokeMethod(this, "updateDisplayMode");
             return;
         }
     }
@@ -104,8 +104,7 @@ void Application::paintGL() {
         PerformanceTimer perfTimer("renderOverlay");
         // NOTE: There is no batch associated with this renderArgs
         // the ApplicationOverlay class assumes it's viewport is setup to be the device size
-        QSize size = getDeviceSize();
-        renderArgs._viewport = glm::ivec4(0, 0, size.width(), size.height());
+        renderArgs._viewport = glm::ivec4(0, 0, getDeviceSize());
         _applicationOverlay.renderOverlay(&renderArgs);
     }
 
@@ -179,7 +178,7 @@ public:
 render::ItemID WorldBoxRenderData::_item{ render::Item::INVALID_ITEM_ID };
 
 namespace render {
-    template <> const ItemKey payloadGetKey(const WorldBoxRenderData::Pointer& stuff) { return ItemKey::Builder::opaqueShape(); }
+    template <> const ItemKey payloadGetKey(const WorldBoxRenderData::Pointer& stuff) { return ItemKey::Builder::opaqueShape().withTagBits(ItemKey::TAG_BITS_0 | ItemKey::TAG_BITS_1); }
     template <> const Item::Bound payloadGetBound(const WorldBoxRenderData::Pointer& stuff) { return Item::Bound(); }
     template <> void payloadRender(const WorldBoxRenderData::Pointer& stuff, RenderArgs* args) {
         if (Menu::getInstance()->isOptionChecked(MenuOption::WorldAxes)) {

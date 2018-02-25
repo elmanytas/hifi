@@ -8,23 +8,27 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
-/* global Tablet, Script, HMD, UserActivityLogger, Entities */
+/* global Tablet, Script, HMD, UserActivityLogger, Entities, Account, Wallet, ContextOverlay, Settings, Camera, Vec3,
+   Quat, MyAvatar, Clipboard, Menu, Grid, Uuid, GlobalServices, openLoginWindow */
 /* eslint indent: ["error", 4, { "outerIIFEBody": 0 }] */
+
+var selectionDisplay = null; // for gridTool.js to ignore
 
 (function () { // BEGIN LOCAL_SCOPE
 
-    Script.include("../libraries/WebTablet.js");
+    Script.include("/~/system/libraries/WebTablet.js");
+    Script.include("/~/system/libraries/gridTool.js");
 
     var METAVERSE_SERVER_URL = Account.metaverseServerURL;
     var MARKETPLACE_URL = METAVERSE_SERVER_URL + "/marketplace";
     var MARKETPLACE_URL_INITIAL = MARKETPLACE_URL + "?";  // Append "?" to signal injected script that it's the initial page.
     var MARKETPLACES_URL = Script.resolvePath("../html/marketplaces.html");
     var MARKETPLACES_INJECT_SCRIPT_URL = Script.resolvePath("../html/js/marketplacesInject.js");
-    var MARKETPLACE_CHECKOUT_QML_PATH_BASE = "qml/hifi/commerce/checkout/Checkout.qml";
-    var MARKETPLACE_CHECKOUT_QML_PATH = Script.resourcesPath() + MARKETPLACE_CHECKOUT_QML_PATH_BASE;
-    var MARKETPLACE_PURCHASES_QML_PATH = Script.resourcesPath() + "qml/hifi/commerce/purchases/Purchases.qml";
-    var MARKETPLACE_WALLET_QML_PATH = Script.resourcesPath() + "qml/hifi/commerce/wallet/Wallet.qml";
+    var MARKETPLACE_CHECKOUT_QML_PATH = "hifi/commerce/checkout/Checkout.qml";
+    var MARKETPLACE_PURCHASES_QML_PATH = "hifi/commerce/purchases/Purchases.qml";
+    var MARKETPLACE_WALLET_QML_PATH = "hifi/commerce/wallet/Wallet.qml";
     var MARKETPLACE_INSPECTIONCERTIFICATE_QML_PATH = "commerce/inspectionCertificate/InspectionCertificate.qml";
+    var REZZING_SOUND = SoundCache.getSound(Script.resolvePath("../assets/sounds/rezzing.wav"));
 
     var HOME_BUTTON_TEXTURE = "http://hifi-content.s3.amazonaws.com/alan/dev/tablet-with-home-button.fbx/tablet-with-home-button.fbm/button-root.png";
     // var HOME_BUTTON_TEXTURE = Script.resourcesPath() + "meshes/tablet-with-home-button.fbx/tablet-with-home-button.fbm/button-root.png";
@@ -71,11 +75,11 @@
             tablet.pushOntoStack(MARKETPLACE_CHECKOUT_QML_PATH);
             tablet.sendToQml({
                 method: 'updateCheckoutQML', params: {
-                    itemId: '0d90d21c-ce7a-4990-ad18-e9d2cf991027',
-                    itemName: 'Test Flaregun',
-                    itemPrice: (debugError ? 10 : 17),
-                    itemHref: 'http://mpassets.highfidelity.com/0d90d21c-ce7a-4990-ad18-e9d2cf991027-v1/flaregun.json',
-                    categories: ["Wearables", "Miscellaneous"]
+                    itemId: '424611a2-73d0-4c03-9087-26a6a279257b',
+                    itemName: '2018-02-15 Finnegon',
+                    itemPrice: (debugError ? 10 : 3),
+                    itemHref: 'http://devmpassets.highfidelity.com/424611a2-73d0-4c03-9087-26a6a279257b-v1/finnigon.fst',
+                    categories: ["Miscellaneous"]
                 }
             });
         }
@@ -100,18 +104,33 @@
             tablet.gotoHomeScreen();
         } else {
             Wallet.refreshWalletStatus();
-            var entity = HMD.tabletID;
-            Entities.editEntity(entity, { textures: JSON.stringify({ "tex.close": HOME_BUTTON_TEXTURE }) });
+            if (HMD.tabletID) {
+                Entities.editEntity(HMD.tabletID, { textures: JSON.stringify({ "tex.close": HOME_BUTTON_TEXTURE }) });
+            }
             showMarketplace();
         }
     }
 
     var referrerURL; // Used for updating Purchases QML
     var filterText; // Used for updating Purchases QML
+
+    var onWalletScreen = false;
     function onScreenChanged(type, url) {
         onMarketplaceScreen = type === "Web" && url.indexOf(MARKETPLACE_URL) !== -1;
-        onCommerceScreen = type === "QML" && (url.indexOf(MARKETPLACE_CHECKOUT_QML_PATH_BASE) !== -1 || url === MARKETPLACE_PURCHASES_QML_PATH || url.indexOf(MARKETPLACE_INSPECTIONCERTIFICATE_QML_PATH) !== -1);
-        wireEventBridge(onCommerceScreen);
+        var onWalletScreenNow = url.indexOf(MARKETPLACE_WALLET_QML_PATH) !== -1;
+        onCommerceScreen = type === "QML" && (url.indexOf(MARKETPLACE_CHECKOUT_QML_PATH) !== -1 || url === MARKETPLACE_PURCHASES_QML_PATH
+            || url.indexOf(MARKETPLACE_INSPECTIONCERTIFICATE_QML_PATH) !== -1);
+
+        if (!onWalletScreenNow && onWalletScreen) { // exiting wallet screen
+            if (isHmdPreviewDisabledBySecurity) {
+                DesktopPreviewProvider.setPreviewDisabledReason("USER");
+                Menu.setIsOptionChecked("Disable Preview", false);
+                isHmdPreviewDisabledBySecurity = false;
+            }
+        }
+
+        onWalletScreen = onWalletScreenNow;
+        wireEventBridge(onMarketplaceScreen || onCommerceScreen || onWalletScreen);
 
         if (url === MARKETPLACE_PURCHASES_QML_PATH) {
             tablet.sendToQml({
@@ -122,7 +141,7 @@
         }
 
         // for toolbar mode: change button to active when window is first openend, false otherwise.
-        marketplaceButton.editProperties({ isActive: onMarketplaceScreen || onCommerceScreen });
+        marketplaceButton.editProperties({ isActive: (onMarketplaceScreen || onCommerceScreen) && !onWalletScreen });
         if (type === "Web" && url.indexOf(MARKETPLACE_URL) !== -1) {
             ContextOverlay.isInMarketplaceInspectionMode = true;
         } else {
@@ -145,6 +164,7 @@
         var certificateId = itemCertificateId || (Entities.getEntityProperties(currentEntityWithContextOverlay, ['certificateID']).certificateID);
         tablet.sendToQml({
             method: 'inspectionCertificate_setCertificateId',
+            entityId: currentEntityWithContextOverlay,
             certificateId: certificateId
         });
     }
@@ -168,6 +188,33 @@
         }));
     }
 
+    var grid = new Grid();
+    function adjustPositionPerBoundingBox(position, direction, registration, dimensions, orientation) {
+        // Adjust the position such that the bounding box (registration, dimenions, and orientation) lies behind the original
+        // position in the given direction.
+        var CORNERS = [
+            { x: 0, y: 0, z: 0 },
+            { x: 0, y: 0, z: 1 },
+            { x: 0, y: 1, z: 0 },
+            { x: 0, y: 1, z: 1 },
+            { x: 1, y: 0, z: 0 },
+            { x: 1, y: 0, z: 1 },
+            { x: 1, y: 1, z: 0 },
+            { x: 1, y: 1, z: 1 },
+        ];
+
+        // Go through all corners and find least (most negative) distance in front of position.
+        var distance = 0;
+        for (var i = 0, length = CORNERS.length; i < length; i++) {
+            var cornerVector =
+                Vec3.multiplyQbyV(orientation, Vec3.multiplyVbyV(Vec3.subtract(CORNERS[i], registration), dimensions));
+            var cornerDistance = Vec3.dot(cornerVector, direction);
+            distance = Math.min(cornerDistance, distance);
+        }
+        position = Vec3.sum(Vec3.multiply(distance, direction), position);
+        return position;
+    }
+
     var HALF_TREE_SCALE = 16384;
     function getPositionToCreateEntity(extra) {
         var CREATE_DISTANCE = 2;
@@ -186,8 +233,49 @@
         return position;
     }
 
-    function rezEntity(itemHref, isWearable) {
+    function rezEntity(itemHref, itemType) {
+        var isWearable = itemType === "wearable";
         var success = Clipboard.importEntities(itemHref);
+        var wearableLocalPosition = null;
+        var wearableLocalRotation = null;
+        var wearableLocalDimensions = null;
+        var wearableDimensions = null;
+
+        if (itemType === "contentSet") {
+            console.log("Item is a content set; codepath shouldn't go here.")
+            return;
+        }
+
+        if (isWearable) {
+            var wearableTransforms = Settings.getValue("io.highfidelity.avatarStore.checkOut.transforms");
+            if (!wearableTransforms) {
+                // TODO delete this clause
+                wearableTransforms = Settings.getValue("io.highfidelity.avatarStore.checkOut.tranforms");
+            }
+            var certPos = itemHref.search("certificate_id="); // TODO how do I parse a URL from here?
+            if (certPos >= 0) {
+                certPos += 15; // length of "certificate_id="
+                var certURLEncoded = itemHref.substring(certPos);
+                var certB64Encoded = decodeURIComponent(certURLEncoded);
+                for (var key in wearableTransforms) {
+                    if (wearableTransforms.hasOwnProperty(key)) {
+                        var certificateTransforms = wearableTransforms[key].certificateTransforms;
+                        if (certificateTransforms) {
+                            for (var certID in certificateTransforms) {
+                                if (certificateTransforms.hasOwnProperty(certID) &&
+                                    certID == certB64Encoded) {
+                                    var certificateTransform = certificateTransforms[certID];
+                                    wearableLocalPosition = certificateTransform.localPosition;
+                                    wearableLocalRotation = certificateTransform.localRotation;
+                                    wearableLocalDimensions = certificateTransform.localDimensions;
+                                    wearableDimensions = certificateTransform.dimensions;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if (success) {
             var VERY_LARGE = 10000;
@@ -257,9 +345,32 @@
                     }
                 }
 
-                if (isActive) {
-                    selectionManager.setSelections(pastedEntityIDs);
+                if (isWearable) {
+                    // apply the relative offsets saved during checkout
+                    var offsets = {};
+                    if (wearableLocalPosition) {
+                        offsets.localPosition = wearableLocalPosition;
+                    }
+                    if (wearableLocalRotation) {
+                        offsets.localRotation = wearableLocalRotation;
+                    }
+                    if (wearableLocalDimensions) {
+                        offsets.localDimensions = wearableLocalDimensions;
+                    } else if (wearableDimensions) {
+                        offsets.dimensions = wearableDimensions;
+                    }
+                    // we currently assume a wearable is a single entity
+                    Entities.editEntity(pastedEntityIDs[0], offsets);
                 }
+
+                var rezPosition = Entities.getEntityProperties(pastedEntityIDs[0], "position").position;
+
+                Audio.playSound(REZZING_SOUND, {
+                    volume: 1.0,
+                    position: rezPosition,
+                    localOnly: true
+                });
+
             } else {
                 Window.notifyEditError("Can't import entities: entities would be out of bounds.");
             }
@@ -322,6 +433,11 @@
             } else if (parsedJsonMessage.type === "LOGIN") {
                 openLoginWindow();
             } else if (parsedJsonMessage.type === "WALLET_SETUP") {
+                wireEventBridge(true);
+                tablet.sendToQml({
+                    method: 'updateWalletReferrer',
+                    referrer: "marketplace cta"
+                });
                 openWallet();
             } else if (parsedJsonMessage.type === "MY_ITEMS") {
                 referrerURL = MARKETPLACE_URL_INITIAL;
@@ -384,7 +500,7 @@
     // Description:
     //   -Called when a message is received from Checkout.qml. The "message" argument is what is sent from the Checkout QML
     //    in the format "{method, params}", like json-rpc.
-    var isHmdPreviewDisabled = true;
+    var isHmdPreviewDisabledBySecurity = false;
     function fromQml(message) {
         switch (message.method) {
             case 'purchases_openWallet':
@@ -399,11 +515,12 @@
                     referrer: "purchases"
                 });
                 openWallet();
+                break;
             case 'checkout_walletNotSetUp':
                 wireEventBridge(true);
                 tablet.sendToQml({
                     method: 'updateWalletReferrer',
-                    referrer: message.itemId
+                    referrer: message.referrer === "itemPage" ? message.itemId : message.referrer
                 });
                 openWallet();
                 break;
@@ -420,8 +537,10 @@
                 tablet.pushOntoStack(MARKETPLACE_PURCHASES_QML_PATH);
                 break;
             case 'checkout_itemLinkClicked':
-            case 'checkout_continueShopping':
                 tablet.gotoWebScreen(MARKETPLACE_URL + '/items/' + message.itemId, MARKETPLACES_INJECT_SCRIPT_URL);
+                break;
+            case 'checkout_continueShopping':
+                tablet.gotoWebScreen(MARKETPLACE_URL_INITIAL, MARKETPLACES_INJECT_SCRIPT_URL);
                 //tablet.popFromStack();
                 break;
             case 'purchases_itemInfoClicked':
@@ -432,7 +551,11 @@
                 break;
             case 'checkout_rezClicked':
             case 'purchases_rezClicked':
-                rezEntity(message.itemHref, message.isWearable);
+                if (message.itemType === "app") {
+                    console.log("How did you get here? You can't buy apps yet!");
+                } else {
+                    rezEntity(message.itemHref, message.itemType);
+                }
                 break;
             case 'header_marketplaceImageClicked':
             case 'purchases_backClicked':
@@ -449,20 +572,31 @@
                 openLoginWindow();
                 break;
             case 'disableHmdPreview':
-                isHmdPreviewDisabled = Menu.isOptionChecked("Disable Preview");
-                Menu.setIsOptionChecked("Disable Preview", true);
+                var isHmdPreviewDisabled = Menu.isOptionChecked("Disable Preview");
+                if (!isHmdPreviewDisabled) {
+                    DesktopPreviewProvider.setPreviewDisabledReason("SECURE_SCREEN");
+                    Menu.setIsOptionChecked("Disable Preview", true);
+                    isHmdPreviewDisabledBySecurity = true;
+                }
                 break;
             case 'maybeEnableHmdPreview':
-                Menu.setIsOptionChecked("Disable Preview", isHmdPreviewDisabled);
+                if (isHmdPreviewDisabledBySecurity) {
+                    DesktopPreviewProvider.setPreviewDisabledReason("USER");
+                    Menu.setIsOptionChecked("Disable Preview", false);
+                    isHmdPreviewDisabledBySecurity = false;
+                }
                 break;
             case 'purchases_openGoTo':
-                tablet.loadQMLSource("TabletAddressDialog.qml");
+                tablet.loadQMLSource("hifi/tablet/TabletAddressDialog.qml");
                 break;
             case 'purchases_itemCertificateClicked':
                 setCertificateInfo("", message.itemCertificateId);
                 break;
             case 'inspectionCertificate_closeClicked':
                 tablet.gotoHomeScreen();
+                break;
+            case 'inspectionCertificate_requestOwnershipVerification':
+                ContextOverlay.requestOwnershipVerification(message.entity);
                 break;
             case 'inspectionCertificate_showInMarketplaceClicked':
                 tablet.gotoWebScreen(message.marketplaceUrl, MARKETPLACES_INJECT_SCRIPT_URL);
@@ -475,6 +609,12 @@
                 tablet.sendToQml({
                     method: 'purchases_showMyItems'
                 });
+                break;
+            case 'refreshConnections':
+            case 'enable_ChooseRecipientNearbyMode':
+            case 'disable_ChooseRecipientNearbyMode':
+            case 'sendMoney_sendPublicly':
+                // NOP
                 break;
             default:
                 print('Unrecognized message from Checkout.qml or Purchases.qml: ' + JSON.stringify(message));

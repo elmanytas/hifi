@@ -15,10 +15,10 @@
 #include "Ledger.h"
 #include "Wallet.h"
 #include <AccountManager.h>
+#include <Application.h>
+#include <UserActivityLogger.h>
 
-HIFI_QML_DEF(QmlCommerce)
-
-QmlCommerce::QmlCommerce(QQuickItem* parent) : OffscreenQmlDialog(parent) {
+QmlCommerce::QmlCommerce() {
     auto ledger = DependencyManager::get<Ledger>();
     auto wallet = DependencyManager::get<Wallet>();
     connect(ledger.data(), &Ledger::buyResult, this, &QmlCommerce::buyResult);
@@ -30,7 +30,11 @@ QmlCommerce::QmlCommerce(QQuickItem* parent) : OffscreenQmlDialog(parent) {
     connect(ledger.data(), &Ledger::accountResult, this, &QmlCommerce::accountResult);
     connect(wallet.data(), &Wallet::walletStatusResult, this, &QmlCommerce::walletStatusResult);
     connect(ledger.data(), &Ledger::certificateInfoResult, this, &QmlCommerce::certificateInfoResult);
+    connect(ledger.data(), &Ledger::alreadyOwnedResult, this, &QmlCommerce::alreadyOwnedResult);
     connect(ledger.data(), &Ledger::updateCertificateStatus, this, &QmlCommerce::updateCertificateStatus);
+    connect(ledger.data(), &Ledger::transferHfcToNodeResult, this, &QmlCommerce::transferHfcToNodeResult);
+    connect(ledger.data(), &Ledger::transferHfcToUsernameResult, this, &QmlCommerce::transferHfcToUsernameResult);
+    connect(ledger.data(), &Ledger::transferHfcToUsernameResult, this, &QmlCommerce::transferHfcToUsernameResult);
     
     auto accountManager = DependencyManager::get<AccountManager>();
     connect(accountManager.data(), &AccountManager::usernameChanged, this, [&]() {
@@ -83,19 +87,28 @@ void QmlCommerce::buy(const QString& assetId, int cost, const bool controlledFai
 void QmlCommerce::balance() {
     auto ledger = DependencyManager::get<Ledger>();
     auto wallet = DependencyManager::get<Wallet>();
-    ledger->balance(wallet->listPublicKeys());
+    QStringList cachedPublicKeys = wallet->listPublicKeys();
+    if (!cachedPublicKeys.isEmpty()) {
+        ledger->balance(cachedPublicKeys);
+    }
 }
 
 void QmlCommerce::inventory() {
     auto ledger = DependencyManager::get<Ledger>();
     auto wallet = DependencyManager::get<Wallet>();
-    ledger->inventory(wallet->listPublicKeys());
+    QStringList cachedPublicKeys = wallet->listPublicKeys();
+    if (!cachedPublicKeys.isEmpty()) {
+        ledger->inventory(cachedPublicKeys);
+    }
 }
 
-void QmlCommerce::history() {
+void QmlCommerce::history(const int& pageNumber) {
     auto ledger = DependencyManager::get<Ledger>();
     auto wallet = DependencyManager::get<Wallet>();
-    ledger->history(wallet->listPublicKeys());
+    QStringList cachedPublicKeys = wallet->listPublicKeys();
+    if (!cachedPublicKeys.isEmpty()) {
+        ledger->history(cachedPublicKeys, pageNumber);
+    }
 }
 
 void QmlCommerce::changePassphrase(const QString& oldPassphrase, const QString& newPassphrase) {
@@ -121,13 +134,6 @@ void QmlCommerce::generateKeyPair() {
     getWalletAuthenticatedStatus();
 }
 
-void QmlCommerce::reset() {
-    auto ledger = DependencyManager::get<Ledger>();
-    auto wallet = DependencyManager::get<Wallet>();
-    ledger->reset();
-    wallet->reset();
-}
-
 void QmlCommerce::account() {
     auto ledger = DependencyManager::get<Ledger>();
     ledger->account();
@@ -136,4 +142,44 @@ void QmlCommerce::account() {
 void QmlCommerce::certificateInfo(const QString& certificateId) {
     auto ledger = DependencyManager::get<Ledger>();
     ledger->certificateInfo(certificateId);
+}
+
+void QmlCommerce::transferHfcToNode(const QString& nodeID, const int& amount, const QString& optionalMessage) {
+    auto ledger = DependencyManager::get<Ledger>();
+    auto wallet = DependencyManager::get<Wallet>();
+    QStringList keys = wallet->listPublicKeys();
+    if (keys.count() == 0) {
+        QJsonObject result{ { "status", "fail" },{ "message", "Uninitialized Wallet." } };
+        return emit buyResult(result);
+    }
+    QString key = keys[0];
+    ledger->transferHfcToNode(key, nodeID, amount, optionalMessage);
+}
+
+void QmlCommerce::transferHfcToUsername(const QString& username, const int& amount, const QString& optionalMessage) {
+    auto ledger = DependencyManager::get<Ledger>();
+    auto wallet = DependencyManager::get<Wallet>();
+    QStringList keys = wallet->listPublicKeys();
+    if (keys.count() == 0) {
+        QJsonObject result{ { "status", "fail" },{ "message", "Uninitialized Wallet." } };
+        return emit buyResult(result);
+    }
+    QString key = keys[0];
+    ledger->transferHfcToUsername(key, username, amount, optionalMessage);
+}
+
+void QmlCommerce::replaceContentSet(const QString& itemHref) {
+    qApp->replaceDomainContent(itemHref);
+    QJsonObject messageProperties = {
+        { "status", "SuccessfulRequestToReplaceContent" },
+        { "content_set_url", itemHref }
+    };
+    UserActivityLogger::getInstance().logAction("replace_domain_content", messageProperties);
+
+    emit contentSetChanged(itemHref);
+}
+
+void QmlCommerce::alreadyOwned(const QString& marketplaceId) {
+    auto ledger = DependencyManager::get<Ledger>();
+    ledger->alreadyOwned(marketplaceId);
 }

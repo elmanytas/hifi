@@ -34,10 +34,11 @@ Item {
     MouseArea {
         anchors.fill: parent;
         propagateComposedEvents: false;
+        hoverEnabled: true;
     }
 
-    Hifi.QmlCommerce {
-        id: commerce;
+    Connections {
+        target: Commerce;
         onSecurityImageResult: {
             passphrasePageSecurityImage.source = "";
             passphrasePageSecurityImage.source = "image://security/securityImage";
@@ -54,6 +55,9 @@ Item {
     // TODO: Fix this unlikely bug
     onVisibleChanged: {
         if (visible) {
+            passphraseField.error = false;
+            passphraseFieldAgain.error = false;
+            currentPassphraseField.error = false;
             if (root.shouldImmediatelyFocus) {
                 focusFirstTextField();
             }
@@ -82,17 +86,6 @@ Item {
             if (focus) {
                 var hidePassword = (currentPassphraseField.echoMode === TextInput.Password);
                 sendSignalToWallet({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-            } else if (!passphraseFieldAgain.focus) {
-                sendSignalToWallet({method: 'walletSetup_lowerKeyboard', isPasswordField: false});
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent;
-            onPressed: {
-                var hidePassword = (currentPassphraseField.echoMode === TextInput.Password);
-                sendSignalToWallet({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-                mouse.accepted = false;
             }
         }
 
@@ -115,21 +108,10 @@ Item {
         activeFocusOnPress: true;
         activeFocusOnTab: true;
 
-        MouseArea {
-            anchors.fill: parent;
-            onPressed: {
-                var hidePassword = (passphraseField.echoMode === TextInput.Password);
-                sendSignalToWallet({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-                mouse.accepted = false;
-            }
-        }
-
         onFocusChanged: {
             if (focus) {
                 var hidePassword = (passphraseField.echoMode === TextInput.Password);
                 sendMessageToLightbox({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-            } else if (!passphraseFieldAgain.focus) {
-                sendMessageToLightbox({method: 'walletSetup_lowerKeyboard', isPasswordField: false});
             }
         }
 
@@ -151,21 +133,10 @@ Item {
         activeFocusOnPress: true;
         activeFocusOnTab: true;
 
-        MouseArea {
-            anchors.fill: parent;
-            onPressed: {
-                var hidePassword = (passphraseFieldAgain.echoMode === TextInput.Password);
-                sendSignalToWallet({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-                mouse.accepted = false;
-            }
-        }
-
         onFocusChanged: {
             if (focus) {
                 var hidePassword = (passphraseFieldAgain.echoMode === TextInput.Password);
                 sendMessageToLightbox({method: 'walletSetup_raiseKeyboard', isPasswordField: hidePassword});
-            } else if (!passphraseField.focus) {
-                sendMessageToLightbox({method: 'walletSetup_lowerKeyboard', isPasswordField: false});
             }
         }
 
@@ -193,7 +164,7 @@ Item {
             source: "image://security/securityImage";
             cache: false;
             onVisibleChanged: {
-                commerce.getSecurityImage();
+                Commerce.getSecurityImage();
             }
         }
         Item {
@@ -316,7 +287,7 @@ Item {
             passphraseFieldAgain.error = false;
             currentPassphraseField.error = false;
             setErrorText("");
-            commerce.changePassphrase(currentPassphraseField.text, passphraseField.text);
+            Commerce.changePassphrase(currentPassphraseField.text, passphraseField.text);
             return true;
         }
     }

@@ -11,7 +11,7 @@ Should you choose not to install Qt5 via a package manager that handles dependen
 ## Ubuntu 16.04 specific build guide
 
 ### Prepare environment
-hifiqt5.10.1
+
 Install qt:
 ```bash
 wget http://debian.highfidelity.com/pool/h/hi/hifiqt5.10.1_5.10.1_amd64.deb
@@ -20,7 +20,7 @@ sudo dpkg -i hifiqt5.10.1_5.10.1_amd64.deb
 
 Install build dependencies:
 ```bash
-sudo apt-get install libasound2 libxmu-dev libxi-dev freeglut3-dev libasound2-dev libjack0 libjack-dev libxrandr-dev libudev-dev libssl-dev
+sudo apt-get install libasound2 libxmu-dev libxi-dev freeglut3-dev libasound2-dev libjack0 libjack-dev libxrandr-dev libudev-dev libssl-dev zlib1g-dev
 ```
 
 To compile interface in a server you must install:
@@ -64,6 +64,11 @@ mkdir -p hifi/build
 cd hifi/build
 ```
 
+Unfortunately you will need to create a link to Qt installation from your home this way or cmake will fail:
+```bash
+ln -s /usr/local/Qt5.10.1/ $HOME/Qt
+```
+
 Prepare makefiles:
 ```bash
 cmake -DQT_CMAKE_PREFIX_PATH=/usr/local/Qt5.10.1/5.10/gcc_64/lib/cmake ..
@@ -92,5 +97,6 @@ Running interface:
 ```bash
 ./interface/interface
 ```
+Unfortunately interface fails because system uses /usr/lib/x86_64-linux-gnu/libnvtt.so ( package `libnvtt-dev`) but interface is compiled with its own libnvtt.so version.
 
 Go to localhost in running interface.
